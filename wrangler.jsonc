@@ -2,6 +2,8 @@
   // M&A Hunter: one Worker serves the React app (dist/), the API (/api/*) and the MCP endpoint (/mcp).
   // A Worker rather than Pages so cron triggers can run sourcing and follow-up scheduling.
   "name": "ma-hunter",
+  // Kaizen Apps. An account id is not a credential.
+  "account_id": "f19d27cc74917ce2597bf6b423f94aff",
   "main": "worker/src/index.ts",
   "compatibility_date": "2026-10-01",
   "assets": {
@@ -11,13 +13,13 @@
     "run_worker_first": ["/api/*", "/mcp"]
   },
   // D1 is the system of record: listings, contacts, pipeline, outreach, settings.
-  // Create it once with `npx wrangler d1 create ma-hunter` and paste the id below. The schema is applied
-  // automatically on the first request (worker/src/db.ts), so there is no migrate step.
+  // The schema is applied automatically on the first request (worker/src/db.ts), so there is no migrate step.
+  // To deploy your own copy: `npx wrangler d1 create ma-hunter` and put its id here.
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "ma-hunter",
-      "database_id": "00000000-0000-0000-0000-000000000000"
+      "database_id": "841ca0f3-0ed5-4b45-b251-a6d65b2a6c84"
     }
   ],
   // R2 holds deal documents (CIMs, NDAs, financials) and a text snapshot of every listing page, so the

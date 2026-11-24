@@ -77,6 +77,8 @@ Open `/admin` (no sign-in on localhost in demo mode) and press **Load demo data*
 
 ### 2. Deploy
 
+The hub runs at **https://ma-hunter.kaizencloud.workers.dev** (Kaizen Apps account; D1 `ma-hunter`, R2 `ma-hunter-files`). `npm run deploy` ships a new version. To stand up your own copy from scratch:
+
 ```bash
 npx wrangler login
 npx wrangler d1 create ma-hunter                 # paste the database_id into wrangler.jsonc
