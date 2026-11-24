@@ -1,0 +1,16 @@
+node_modules
+dist
+.wrangler
+.dev.vars
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+*.tsbuildinfo
+desktop.ini
+.test-dist
+# Local copies of secrets (never commit)
+*.local.txt
+*.local.json
+creds*.txt

@@ -1,0 +1,12 @@
+{
+  "hubUrl": "https://your-hub.example.workers.dev",
+  "token": "the token you put under this runner's name in the AGENT_TOKENS secret",
+  "profileDir": "profile",
+  "channel": "chrome",
+  "headless": false,
+  "capabilities": ["source", "contact"],
+  "submitForms": false,
+  "maxDetailPages": 20,
+  "pauseSeconds": [5, 12],
+  "pollSeconds": 90
+}

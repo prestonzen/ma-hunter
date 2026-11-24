@@ -1,0 +1,38 @@
+{
+  // M&A Hunter: one Worker serves the React app (dist/), the API (/api/*) and the MCP endpoint (/mcp).
+  // A Worker rather than Pages so cron triggers can run sourcing and follow-up scheduling.
+  "name": "ma-hunter",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/mcp"]
+  },
+  // D1 is the system of record: listings, contacts, pipeline, outreach, settings.
+  // Create it once with `npx wrangler d1 create ma-hunter` and paste the id below. The schema is applied
+  // automatically on the first request (worker/src/db.ts), so there is no migrate step.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ma-hunter",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  // R2 holds deal documents (CIMs, NDAs, financials) and a text snapshot of every listing page, so the
+  // details survive after a listing is taken down. Create with `npx wrangler r2 bucket create ma-hunter-files`.
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "ma-hunter-files" }],
+  // Every 15 minutes: run saved searches that are due, expire stale listings, re-score.
+  "triggers": { "crons": ["*/15 * * * *"] },
+  // Secrets, set with `npx wrangler secret put <NAME>`:
+  //   ADMIN_TOKEN         24+ random chars; paste it on /admin to sign in
+  //   GMAIL_BRIDGE_TOKEN  shared secret for integrations/gmail-bridge.gs
+  //   AGENT_TOKENS        JSON map of agent name -> token, for /api/agent/* and /mcp
+  //   FLIPPA_TOKEN        optional: Flippa API access token for the Flippa importer
+  "vars": {
+    "MOCK": "false",
+    // "true" shows aggregate-only counts on the public page; anything else shows a plain sign-in link.
+    "PUBLIC_DASHBOARD": "false"
+  }
+}

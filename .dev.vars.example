@@ -1,0 +1,8 @@
+# Copy to .dev.vars (git-ignored) for local `npm run dev:api`. NEVER commit real values.
+# With MOCK=true on localhost the admin page needs no sign-in, so these are only needed to test the real flows.
+ADMIN_TOKEN=change-me-to-a-long-random-token-24-chars-min
+GMAIL_BRIDGE_TOKEN=change-me-to-a-long-random-token-24-chars-min
+# JSON map: agent name -> bearer token (24+ chars), for /api/agent/* and /mcp.
+AGENT_TOKENS={"claude":"change-me-to-a-long-random-token-24-chars-min"}
+# Optional: Flippa API access token for the Flippa importer.
+# FLIPPA_TOKEN=
