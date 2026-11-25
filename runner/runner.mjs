@@ -23,7 +23,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const between = (a, b) => a + Math.random() * (b - a);
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -42,6 +42,8 @@ export function loadConfig(path = join(HERE, "config.json")) {
     channel: file.channel ?? "chrome", // the Chrome installed on this machine; "msedge" also works
     headless: file.headless ?? false,
     capabilities: file.capabilities ?? ["source", "contact"],
+    // The one site the runner may sign NDAs on (your Documenso), e.g. https://esign.example.com. Needed for the "sign" capability.
+    documensoUrl: file.documensoUrl ?? process.env.MAH_DOCUMENSO_URL ?? "",
     submitForms: file.submitForms ?? false,
     maxDetailPages: file.maxDetailPages ?? 20,
     pauseSeconds: file.pauseSeconds ?? [5, 12],
@@ -270,6 +272,82 @@ export async function runContact(context, cfg, hub, task) {
   if (!(result.outcome === "needs_human" && /ready: press Send|check the runner/.test(result.detail ?? ""))) await page.close().catch(() => {});
 }
 
+/**
+ * Sign one NDA on Documenso's signing page, the way a person does: type the signature, put it in each
+ * signature field, press Complete, confirm. Documenso draws the document and its fields on a canvas, so
+ * the fields are clicked by position (the hub knows where it put them). Date and pre-filled text fields
+ * fill themselves. Anything unexpected is left for a person, with the page still open.
+ */
+export async function signDocument(page, task) {
+  const body = async () => (await page.locator("body").innerText().catch(() => "")) || "";
+  const remaining = async () => {
+    const m = /(\d+) Fields? Remaining/i.exec(await body());
+    return m ? Number(m[1]) : null;
+  };
+  const pad = page.locator('[data-testid="signature-pad-dialog-button"]');
+  try {
+    await pad.waitFor({ timeout: 30_000 });
+  } catch {
+    const text = await body();
+    if (/document (?:has been )?(?:signed|completed)|everyone has signed|you have signed/i.test(text)) return { outcome: "signed" };
+    return { outcome: "needs_human", detail: "The signing page didn't open as expected (it may want a sign-in, a passkey or a code)" };
+  }
+
+  await pad.click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("tab", { name: "Type" }).click();
+  await dialog.locator('[data-testid="signature-pad-type-input"]').fill(task.signerName);
+  await dialog.getByRole("button", { name: "Next", exact: true }).click();
+  await dialog.waitFor({ state: "hidden", timeout: 10_000 });
+
+  const pages = page.locator(".konva-container");
+  for (const f of task.fields ?? []) {
+    const sheet = pages.nth(f.page - 1);
+    await sheet.waitFor({ timeout: 20_000 });
+    await sheet.scrollIntoViewIfNeeded();
+    await sleep(600);
+    const x = (f.positionX + f.width / 2) / 100;
+    const y = (f.positionY + f.height / 2) / 100;
+    // Position within the sheet, so the click lands on the field even when the sheet is taller than the window.
+    const box = await sheet.boundingBox();
+    await page.mouse.wheel(0, box.y + box.height * y - 400);
+    await sleep(500);
+    const now = await sheet.boundingBox();
+    await page.mouse.click(now.x + now.width * x, now.y + now.height * y);
+    await sleep(1500);
+  }
+
+  const left = await remaining();
+  if (left !== 0) return { outcome: "needs_human", detail: `${left ?? "Some"} field${left === 1 ? "" : "s"} still to fill: finish it in the runner's browser` };
+  await page.getByRole("button", { name: "Complete", exact: true }).first().click();
+  const confirm = page.getByRole("dialog");
+  await confirm.getByRole("button", { name: "Sign", exact: true }).click();
+  await confirm.waitFor({ state: "hidden", timeout: 30_000 });
+  await sleep(2500);
+  return { outcome: "signed" };
+}
+
+export async function runSign(context, cfg, hub, task) {
+  const page = await context.newPage();
+  let result;
+  try {
+    log(`sign: ${task.title}`);
+    const allowed = cfg.documensoUrl ? `${cfg.documensoUrl.replace(/\/+$/, "")}/sign/` : null;
+    if (!allowed) result = { outcome: "needs_human", detail: 'Set "documensoUrl" in the runner\'s config.json so it knows which site it may sign on' };
+    else if (!String(task.url).startsWith(allowed)) result = { outcome: "needs_human", detail: "The signing link isn't on the Documenso this runner is set up for" };
+    else {
+      await page.goto(task.url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+      result = await signDocument(page, task);
+    }
+  } catch (e) {
+    result = { outcome: "failed", detail: e.message.slice(0, 280) };
+  }
+  // The hub checks with Documenso before it believes "signed".
+  const r = await hub("/sign-result", { ndaId: task.ndaId, ...result });
+  log(`  ${result.outcome}${result.detail ? `: ${result.detail}` : ""} (hub: ${r.status})`);
+  if (result.outcome === "signed") await page.close().catch(() => {});
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const cfg = loadConfig();
@@ -294,6 +372,7 @@ async function main() {
       ({ task } = await hub("/work", { capabilities: cfg.capabilities, version: VERSION }));
       if (task?.kind === "source") await runSource(context, cfg, hub, task);
       else if (task?.kind === "contact") await runContact(context, cfg, hub, task);
+      else if (task?.kind === "sign") await runSign(context, cfg, hub, task);
     } catch (e) {
       log(`error: ${e.message}`);
     }

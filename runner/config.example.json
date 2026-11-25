@@ -5,6 +5,7 @@
   "channel": "chrome",
   "headless": false,
   "capabilities": ["source", "contact"],
+  "documensoUrl": "",
   "submitForms": false,
   "maxDetailPages": 20,
   "pauseSeconds": [5, 12],

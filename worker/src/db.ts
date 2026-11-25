@@ -90,6 +90,21 @@ const MIGRATIONS: string[][] = [
     )`,
     `CREATE INDEX IF NOT EXISTS documents_listing ON documents (listingId)`,
   ],
+  // 2: NDAs signed through Documenso, and outgoing messages that carry a document.
+  [
+    `CREATE TABLE IF NOT EXISTS ndas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, listingId INTEGER, contactId INTEGER,
+      kind TEXT NOT NULL, status TEXT NOT NULL, title TEXT NOT NULL,
+      counterparty TEXT, counterpartyEmail TEXT,
+      sourceDocId INTEGER, signedDocId INTEGER, envelopeId TEXT, signingUrl TEXT,
+      flags TEXT NOT NULL DEFAULT '[]', fields TEXT NOT NULL DEFAULT '[]', placement TEXT NOT NULL DEFAULT 'generated',
+      auto INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0, leaseUntil INTEGER NOT NULL DEFAULT 0, error TEXT,
+      createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL, signedAt INTEGER
+    )`,
+    `CREATE INDEX IF NOT EXISTS ndas_status ON ndas (status, auto)`,
+    `CREATE INDEX IF NOT EXISTS ndas_listing ON ndas (listingId)`,
+    `ALTER TABLE messages ADD COLUMN attachDocId INTEGER`,
+  ],
 ];
 
 const ready = new WeakMap<D1Database, Promise<void>>();

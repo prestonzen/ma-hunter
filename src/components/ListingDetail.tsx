@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { NdaPanel } from "./Ndas";
 import { STAGES, STAGE_LABEL, type Listing, type ListingDetail as Detail } from "../../shared/types";
 import { api, type SequenceRow } from "../api";
 import { TRI_LABEL, ago, date, dateTime, days, fitTone, fullMoney, money, sourceName } from "../format";
@@ -386,6 +387,8 @@ export default function ListingDetail({ id, onClose, onChanged }: Props) {
               ))}
             </ul>
           </section>
+
+          <NdaPanel listingId={id} onChanged={() => void run(api.listing(id))} />
 
           <Documents d={d} run={run} reload={() => void run(api.listing(id))} />
 

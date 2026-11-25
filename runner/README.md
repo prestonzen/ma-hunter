@@ -4,6 +4,7 @@ BizBuySell, BizQuest, Flippa and LoopNet refuse requests from servers, and most 
 
 - **source**: opens each saved *browser search*, finds the listings the hub hasn't seen, opens each one and sends the page text to the hub, which parses and scores it.
 - **contact**: opens a listing and types an inquiry you approved in the hub into its contact form.
+- **sign** (optional): signs an NDA on your Documenso's signing page, for the NDAs your auto-sign rule in the hub clears.
 
 What it deliberately does not do:
 
@@ -56,6 +57,20 @@ claude mcp add --transport http ma-hunter https://<your hub>/mcp --header "Autho
 claude -p "$(cat agent-prompt.md)"
 ```
 
+## Signing NDAs
+
+Documenso has no API for signing: a signature is made on its signing page. With `"sign"` among the runner's `capabilities` and `documensoUrl` set to your Documenso (e.g. `https://esign.example.com`), the runner opens the signing link the hub gives it, types your name as the signature, puts it in the signature field, presses Complete and confirms. It only ever signs on that one site, and only NDAs the hub marked for it (NDAs tab, "Signing without asking"). The hub then asks Documenso itself whether the document is complete before it files anything.
+
+If the page wants a sign-in, a passkey or a code, or a field is left over, the runner stops and leaves the page open for you.
+
+To check it against your Documenso version, make a throwaway envelope and run:
+
+```bash
+node sign-check.mjs <signing url> "<name to sign as>" <page> <positionX> <positionY> <width> <height>
+```
+
+Verified against Documenso's v2 signing page on 2026-11-25.
+
 ## Where to run it
 
 - **A desktop you use** (simplest): run it in a terminal; Chrome opens on your screen, and you can watch and step in.
@@ -79,7 +94,8 @@ It serves a fake marketplace, runs sourcing over it, pushes one inquiry through 
 | `profileDir` | `profile` | Chrome profile folder holding your sign-ins |
 | `channel` | `chrome` | Installed browser to drive (`msedge` also works) |
 | `headless` | `false` | Leave false: you need to see the window to sign in and to send forms by hand |
-| `capabilities` | `["source","contact"]` | Which jobs this runner takes |
+| `capabilities` | `["source","contact"]` | Which jobs this runner takes. Add `"sign"` to have it sign NDAs |
+| `documensoUrl` | | Your Documenso's address; the only site the runner will sign on (or `MAH_DOCUMENSO_URL`) |
 | `submitForms` | `false` | Press send on contact forms |
 | `maxDetailPages` | `20` | Listing pages opened per search run |
 | `pauseSeconds` | `[5, 12]` | Wait between pages, random in this range |

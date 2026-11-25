@@ -6,16 +6,18 @@
   "type": "module",
   "scripts": {
     "dev": "node ./node_modules/vite/bin/vite.js",
-    "dev:api": "node ./node_modules/wrangler/bin/wrangler.js dev --port 8788 --var MOCK:true",
+    "dev:api": "node ./node_modules/wrangler/bin/wrangler.js dev --port 8788 --local-upstream 127.0.0.1:8788 --var MOCK:true",
     "build": "node ./node_modules/typescript/bin/tsc -b && node ./node_modules/vite/bin/vite.js build",
     "typecheck": "node ./node_modules/typescript/bin/tsc -b && node ./node_modules/typescript/bin/tsc -p worker/tsconfig.json --noEmit",
     "test": "node scripts/test.mjs",
-    "demo": "npm run build && node ./node_modules/wrangler/bin/wrangler.js dev --port 8788 --var MOCK:true",
+    "demo": "npm run build && node ./node_modules/wrangler/bin/wrangler.js dev --port 8788 --local-upstream 127.0.0.1:8788 --var MOCK:true",
     "deploy": "npm run build && node ./node_modules/wrangler/bin/wrangler.js deploy"
   },
   "dependencies": {
+    "pdf-lib": "^1.17.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "unpdf": "^2.2.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261007.1",

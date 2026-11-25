@@ -4,13 +4,14 @@ import { db, getSetting, recentEvents, setSetting } from "./db";
 import { deleteDocument, downloadDocument, uploadDocument } from "./docs";
 import { addNote, buyBox, deleteListing, expireStale, getDetail, listContacts, listListings, logContact, patchContact, patchListing, rescoreAll, upsertContact, upsertListings, type ListFilters } from "./listings";
 import { handleMcp, nextContactTask, reportContact } from "./mcp";
+import { attachment, claimSignTask, createOurs, createTheirs, documensoConfigured, listNdas, ndaSettings, onReply, openNda, reportSign, saveNdaSettings, setAuto, syncNda, syncNdas, voidNda, type MailAttachment } from "./nda";
 import { claimDue, deleteTemplate, enroll, handleReply, listMessages, listSequences, listTemplates, markFailed, markSent, outreachSettings, patchMessage, saveSequence, saveTemplate, stopEnrollment, watchList, type InboundEmail } from "./outreach";
 import { ALERT_DOMAINS, parseListingPage, type PagePayload } from "./parse";
 import { DEFAULT_BUY_BOX } from "./score";
 import { seedDemo } from "./seed";
 import { claimBrowserSearch, deleteSearch, ingestAlert, ingestPages, isAlertSender, listingLinks, listSearches, previewUrl, runDueSearches, runSearch, saveSearch, unseen } from "./sources";
 import { HttpError } from "./types";
-import type { BuyBox, Env, ListingInput, OutreachSettings } from "./types";
+import type { BuyBox, Env, ListingInput, NdaSettings, OutreachSettings } from "./types";
 
 const json = (o: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(o), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...headers } });
@@ -71,7 +72,7 @@ async function adminRoutes(request: Request, env: Env, path: string, user: strin
       origin: url.origin,
       gmailBridge: bridge,
       runners: settingsRows.results.map((r) => ({ name: r.key.slice(7), ...(JSON.parse(r.value) as object) })),
-      configured: { bridgeToken: (env.GMAIL_BRIDGE_TOKEN ?? "").length >= 24, agents: agentNames(env), flippaToken: !!env.FLIPPA_TOKEN, publicDashboard: env.PUBLIC_DASHBOARD === "true" },
+      configured: { bridgeToken: (env.GMAIL_BRIDGE_TOKEN ?? "").length >= 24, agents: agentNames(env), flippaToken: !!env.FLIPPA_TOKEN, publicDashboard: env.PUBLIC_DASHBOARD === "true", documenso: documensoConfigured(env) },
       queue: { drafts: queue?.drafts ?? 0, approved: queue?.approved ?? 0, needsHuman: queue?.needsHuman ?? 0, failed: queue?.failed ?? 0 },
       alertDomains: ALERT_DOMAINS,
     });
@@ -150,6 +151,31 @@ async function adminRoutes(request: Request, env: Env, path: string, user: strin
     if (seg[2] === "documents" && m === "POST") {
       await uploadDocument(env, id, request, user);
       return json(await getDetail(env, id), 201);
+    }
+    // NDAs: write ours for this listing, or take theirs as a PDF.
+    if (seg[2] === "nda" && !seg[3] && m === "POST") return json(await createOurs(env, id, user), 201);
+    if (seg[2] === "nda" && seg[3] === "upload" && m === "POST") {
+      return json(await createTheirs(env, id, url.searchParams.get("filename") ?? "nda.pdf", await request.arrayBuffer(), user), 201);
+    }
+  }
+
+  if (path === "/ndas" && m === "GET") {
+    const listingId = Number(url.searchParams.get("listingId")) || undefined;
+    return json({ items: await listNdas(env, { listingId }), settings: await ndaSettings(env), configured: documensoConfigured(env), documensoUrl: env.DOCUMENSO_URL ?? null });
+  }
+  if (path === "/ndas/sync" && m === "POST") return json(await syncNdas(env));
+  if (path === "/settings/nda" && m === "PUT") return json({ settings: await saveNdaSettings(env, await body<Partial<NdaSettings>>(request)) });
+  if (seg[0] === "ndas" && seg[1] && seg[2] && m === "POST") {
+    const id = int(seg[1]);
+    if (seg[2] === "sync") return json(await syncNda(env, id));
+    if (seg[2] === "retry") return json(await openNda(env, id));
+    if (seg[2] === "auto") {
+      await setAuto(env, id, !!(await body<{ auto: boolean }>(request)).auto);
+      return json({ ok: true });
+    }
+    if (seg[2] === "void") {
+      await voidNda(env, id, user);
+      return json({ ok: true });
     }
   }
   if (seg[0] === "documents" && seg[1]) {
@@ -327,6 +353,11 @@ async function agentRoutes(request: Request, env: Env, path: string, agent: stri
     const b = await body<{ capabilities?: string[]; version?: string }>(request).catch(() => ({}) as { capabilities?: string[]; version?: string });
     const caps = b.capabilities ?? ["source", "contact"];
     await heartbeat(env, `runner:${agent}`, { capabilities: caps, version: b.version ?? null });
+    // Signing first: an NDA waiting on a signature holds up the whole deal.
+    if (caps.includes("sign")) {
+      const n = await claimSignTask(env);
+      if (n) return json({ task: n });
+    }
     if (caps.includes("contact")) {
       const c = await nextContactTask(env);
       if (c.task) return json({ task: c.task });
@@ -349,6 +380,7 @@ async function agentRoutes(request: Request, env: Env, path: string, agent: stri
   }
   if (path === "/pages" && m === "POST") return json(await ingestPages(env, await body(request), agent));
   if (path === "/contact-result" && m === "POST") return json(await reportContact(env, agent, await body(request)));
+  if (path === "/sign-result" && m === "POST") return json(await reportSign(env, agent, await body(request)));
 
   throw new HttpError(404, "not found");
 }
@@ -356,11 +388,14 @@ async function agentRoutes(request: Request, env: Env, path: string, agent: stri
 interface BridgeReport {
   account?: string;
   sent?: { id: number; ok: boolean; gmailId?: string; threadId?: string; error?: string }[];
-  inbound?: (InboundEmail & { kind?: "reply" | "alert"; html?: string | null })[];
+  inbound?: (InboundEmail & { kind?: "reply" | "alert"; html?: string | null; attachments?: MailAttachment[] })[];
 }
 
 async function gmailRoutes(request: Request, env: Env, path: string): Promise<Response> {
   if (request.method !== "POST") throw new HttpError(405, "POST only");
+
+  // A document that an approved message carries (the signed NDA going back to the broker).
+  if (path === "/attachment") return attachment(env, int(String((await body<{ id: number }>(request)).id)));
 
   // What the bridge should do now: emails to send, and where to look for replies and alerts.
   if (path === "/work") {
@@ -372,7 +407,7 @@ async function gmailRoutes(request: Request, env: Env, path: string): Promise<Re
 
   if (path === "/report") {
     const b = await body<BridgeReport>(request);
-    const out = { sent: 0, failed: 0, replies: 0, alerts: 0, newListings: 0, unmatched: 0 };
+    const out = { sent: 0, failed: 0, replies: 0, alerts: 0, newListings: 0, unmatched: 0, ndas: 0 };
     for (const r of b.sent ?? []) {
       if (r.ok) {
         await markSent(env, Number(r.id), { gmailId: r.gmailId ?? null, threadId: r.threadId ?? null, from: b.account ?? null }, "gmail");
@@ -395,6 +430,7 @@ async function gmailRoutes(request: Request, env: Env, path: string): Promise<Re
       }
       const r = await handleReply(env, mail);
       if (r.duplicate) continue;
+      if (r.matched && (await onReply(env, { listingId: r.listingId, classification: r.classification, attachments: mail.attachments }))) out.ndas++;
       if (r.matched) out.replies++;
       else out.unmatched++;
     }
@@ -455,12 +491,13 @@ export async function handle(request: Request, env: Env): Promise<Response> {
 
 export default {
   fetch: handle,
-  /** Cron: run the saved searches that are due and retire listings that vanished from their source. */
+  /** Cron: run the saved searches that are due, retire listings that vanished from their source, and file NDAs that were signed. */
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
       (async () => {
         await runDueSearches(env, 2);
         await expireStale(env);
+        await syncNdas(env);
       })(),
     );
   },

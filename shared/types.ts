@@ -338,3 +338,74 @@ export interface PublicSummary {
   bySource?: { source: string; n: number }[];
   byIndustry?: { industry: string; n: number }[];
 }
+
+// ---------- NDAs ----------
+
+export interface NdaFlag {
+  /** red: read it before signing. amber: common in broker NDAs, worth knowing about. */
+  level: "red" | "amber";
+  label: string;
+  quote: string;
+}
+
+/** A field for the signer; positions are percentages of the page from its top-left corner. */
+export interface NdaField {
+  type: "SIGNATURE" | "DATE" | "TEXT";
+  page: number;
+  positionX: number;
+  positionY: number;
+  width: number;
+  height: number;
+  /** TEXT only: printed on the document as-is. */
+  text?: string;
+}
+
+/** generated: our own document. anchored: the buyer's signature line was found. guess / fallback: check the placement. */
+export type NdaPlacement = "generated" | "anchored" | "guess" | "fallback";
+
+/** to_sign: live in Documenso, waiting for your signature. failed: Documenso refused it; retry. void: cancelled. */
+export type NdaState = "to_sign" | "signed" | "failed" | "void";
+
+export interface Nda {
+  id: number;
+  listingId: number | null;
+  contactId: number | null;
+  /** ours: the buyer's own confidentiality agreement. theirs: a PDF the broker or owner sent. */
+  kind: "ours" | "theirs";
+  status: NdaState;
+  title: string;
+  counterparty: string | null;
+  counterpartyEmail: string | null;
+  sourceDocId: number | null;
+  signedDocId: number | null;
+  envelopeId: string | null;
+  signingUrl: string | null;
+  flags: NdaFlag[];
+  placement: NdaPlacement;
+  /** 1: cleared for the browser runner to sign without asking. */
+  auto: number;
+  attempts: number;
+  error: string | null;
+  createdAt: number;
+  updatedAt: number;
+  signedAt: number | null;
+  listingTitle?: string | null;
+}
+
+export interface NdaSettings {
+  /** The name that signs. Falls back to the outreach sender's name. */
+  legalName: string;
+  title: string;
+  address: string;
+  /** Governing law for our own NDA, e.g. "the State of Texas". */
+  state: string;
+  termYears: number;
+  /** off: every NDA waits for your click. mine: the runner signs our own NDA. clean: also theirs, when nothing is flagged red and the signature line was found. */
+  autoSign: "off" | "mine" | "clean";
+  /** A broker asks for an NDA and attaches none: send ours, or wait for theirs. */
+  onRequest: "send_mine" | "wait";
+  /** Email the signed copy back in the same thread, with a request for the CIM. */
+  returnByEmail: boolean;
+  returnMessage: string;
+  template: string;
+}

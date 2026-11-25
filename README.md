@@ -1,6 +1,6 @@
 # M&A Hunter
 
-**One dashboard for every business for sale.** M&A Hunter pulls listings from BizBuySell, Flippa, Empire Flippers and other marketplaces into one scored list, tracks each deal from first look to close, and runs the outreach to brokers and owners, with follow-ups, from your own Gmail.
+**One dashboard for every business for sale.** M&A Hunter pulls listings from BizBuySell, Flippa, Empire Flippers and other marketplaces into one scored list, tracks each deal from first look to close, runs the outreach to brokers and owners, with follow-ups, from your own Gmail, and gets the NDAs signed through your own Documenso.
 
 It is the M&A counterpart of [job-agent-hub](https://github.com/prestonzen/job-agent-hub): same shape (a Cloudflare hub, a browser runner on your own machine, MCP for agents), different hunt.
 
@@ -41,6 +41,7 @@ Nothing is guessed: a field the listing doesn't state stays "not stated", and th
 - **Outreach with follow-ups.** Templates and sequences; the first message waits for your approval, follow-ups go out on schedule and stop the moment the contact replies. Daily caps, sending hours and a pause switch.
 - **Two contact channels.** Email goes from your own Gmail (follow-ups in the same thread). Listings with only a contact form get the message typed into that form by the browser runner, or by an AI agent, or by you with one click to copy it.
 - **Replies understood.** A reply is filed on its listing and read: still available, sold, wants an NDA, wants proof of funds, wants a call. What it says about financing, the reason for selling or the owner staying fills the listing's gaps.
+- **NDAs, signed through Documenso.** When a broker asks for an NDA, the hub writes yours for that listing; when their reply carries one as a PDF, the hub reads it, flags the clauses worth a look (fees, non-competes, indemnities, long or open-ended terms) and finds where the buyer signs. Either way it becomes an envelope in your Documenso with a signing link. You sign with a click, or the browser runner signs the ones your rule clears. The signed copy is filed on the listing, the listing moves to "NDA signed", and the copy goes back to the broker in the same thread with a request for the CIM.
 - **Broker introductions.** Send brokers your buy box so they think of you before a deal is listed.
 - **Deal math.** Down payment, bank loan, seller note → debt service, coverage (DSCR) and cash-on-cash, per listing.
 - **Duplicates and price cuts.** The same business on two marketplaces is flagged; an asking-price change is logged with its history.
@@ -77,7 +78,7 @@ Open `/admin` (no sign-in on localhost in demo mode) and press **Load demo data*
 
 ### 2. Deploy
 
-The hub runs at **https://ma-hunter.kaizencloud.workers.dev** (Kaizen Apps account; D1 `ma-hunter`, R2 `ma-hunter-files`). `npm run deploy` ships a new version. To stand up your own copy from scratch:
+The hub runs at **https://qla.prestonzen.com** (Kaizen Apps account; D1 `ma-hunter`, R2 `ma-hunter-files`). `npm run deploy` ships a new version. To stand up your own copy from scratch:
 
 ```bash
 npx wrangler login
@@ -87,6 +88,7 @@ npx wrangler secret put ADMIN_TOKEN              # 24+ random characters; you si
 npx wrangler secret put GMAIL_BRIDGE_TOKEN       # 24+ random characters, shared with the Gmail bridge
 npx wrangler secret put AGENT_TOKENS             # {"zenith":"<24+ random characters>"} for the runner and agents
 npx wrangler secret put FLIPPA_TOKEN             # optional
+npx wrangler secret put DOCUMENSO_TOKEN          # optional: an API token from your Documenso, for NDA signing
 npm run deploy
 ```
 
@@ -101,7 +103,19 @@ The database schema is applied on the first request; there is no migrate step.
 
 Paste [integrations/gmail-bridge.gs](integrations/gmail-bridge.gs) into a new project at script.google.com, set the script properties `HUB_URL` and `BRIDGE_TOKEN`, and run `install` once. It runs inside your Google account every 5 minutes: no OAuth app, and no password leaves Google. It forwards only mail in threads the hub started, from contacts you've written to, or from marketplace alert addresses.
 
-### 5. Start the browser runner
+### 5. Connect Documenso (NDA signing)
+
+Set `DOCUMENSO_URL` in `wrangler.jsonc` to your Documenso and store an API token from it (Settings, API tokens) as the `DOCUMENSO_TOKEN` secret. On the **NDAs** tab, set the name and title that sign, and how much may be signed without asking:
+
+- **Never**: every NDA waits for your click.
+- **My own NDA** (default): the runner signs the NDA the hub wrote from your template; a broker's NDA waits for you.
+- **Mine, and clean ones of theirs**: also a broker's NDA when nothing is flagged red and the buyer's signature line was found.
+
+Documenso has no API for signing, so a signature is always made on its signing page: by you (one click from the hub), or by the browser runner with the `sign` capability. The hub never tells Documenso to email anyone; it carries the signed copy back itself, through Gmail.
+
+The clause scan is a set of patterns, not a lawyer. It tells you what to read; it does not tell you a document is safe.
+
+### 6. Start the browser runner
 
 On a machine with Chrome and a residential connection. See [runner/README.md](runner/README.md).
 
@@ -118,6 +132,7 @@ Then add your searches on the **Sources** tab, and set up email alerts for the s
 - **Nothing is sent without approval** unless you switch a sequence to send without review. Follow-ups are auto-approved by default and stop on any reply.
 - **Caps**: emails per day, contact forms per day, sending hours, weekdays only, and a pause switch. A contact marked do-not-contact is never written to again; "remove me" in a reply sets it.
 - **The runner never handles passwords and never solves CAPTCHAs.** It stops and the task shows as "Needs you".
+- **NDAs are never signed by the hub itself.** A broker's NDA with a red flag, or one whose signature line wasn't found, always waits for you, whatever the auto-sign rule says. The runner signs only on your own Documenso, and the hub asks Documenso whether a document is complete before it files or sends anything.
 - **Hand edits are locked**: an import never overwrites a field you changed, and never replaces a known value with an unknown one.
 - **Listing text is data.** Pages, emails and clipped content are parsed as text and rendered as text.
 
@@ -136,6 +151,7 @@ npm run dev                        # Vite on http://localhost:5173, proxies /api
 npm run typecheck
 npm test                           # parser, scoring, outreach logic
 node runner/selftest.mjs           # runner end to end, against the local hub
+node scripts/nda-selftest.mjs      # NDA signing end to end, against a stand-in Documenso (see the file's header)
 ```
 
 | Path | What |
@@ -145,6 +161,8 @@ node runner/selftest.mjs           # runner end to end, against the local hub
 | `worker/src/listings.ts` | Upsert (bulk, lock-aware), filters, edits |
 | `worker/src/outreach.ts` | Templates, sequences, the queue, reply handling |
 | `worker/src/sources.ts` | Importers, saved searches, runner and alert intake |
+| `worker/src/nda.ts` | NDAs: Documenso envelopes, the signing queue, filing and returning the signed copy |
+| `worker/src/ndapdf.ts` | Our NDA as a PDF; reading a broker's NDA, the clause scan, finding the signature line |
 | `worker/src/mcp.ts` | MCP server for agents |
 | `worker/src/db.ts` | Schema as ordered migrations, applied on first request |
 | `src/` | React admin |
@@ -157,4 +175,6 @@ node runner/selftest.mjs           # runner end to end, against the local hub
 - Enrich alert and search-card stubs automatically by having the runner visit them.
 - LLM extraction (Workers AI) as a second pass over descriptions, and a draft reply for each broker response.
 - A container image for the runner with a noVNC view.
+- NDAs that arrive as a link to the broker's own e-signature page (DocuSign, a web form) instead of a PDF.
+- A second signer on our own NDA, for sellers who want to countersign.
 - Weekly D1 backup to R2.

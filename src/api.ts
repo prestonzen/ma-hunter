@@ -1,4 +1,4 @@
-import type { Analytics, BuyBox, Contact, EventRow, Facets, Listing, ListingDetail, ListingInput, Message, OutreachSettings, PublicSummary, SavedSearch, Sequence, Template } from "../shared/types";
+import type { Analytics, BuyBox, Contact, EventRow, Facets, Listing, ListingDetail, ListingInput, Message, Nda, NdaSettings, OutreachSettings, PublicSummary, SavedSearch, Sequence, Template } from "../shared/types";
 
 export class ApiError extends Error {
   constructor(
@@ -26,9 +26,16 @@ export interface Status {
   origin: string;
   gmailBridge: { account?: string | null; at: number } | null;
   runners: { name: string; at: number; capabilities?: string[] }[];
-  configured: { bridgeToken: boolean; agents: string[]; flippaToken: boolean; publicDashboard: boolean };
+  configured: { bridgeToken: boolean; agents: string[]; flippaToken: boolean; publicDashboard: boolean; documenso: boolean };
   queue: { drafts: number; approved: number; needsHuman: number; failed: number };
   alertDomains: string[];
+}
+
+export interface NdaList {
+  items: Nda[];
+  settings: NdaSettings;
+  configured: boolean;
+  documensoUrl: string | null;
 }
 
 export type SequenceRow = Sequence & { active: number; replied: number; total: number };
@@ -99,5 +106,20 @@ export const api = {
   saveSearch: (s: Partial<SavedSearch>) => (s.id ? send<{ id: number }>("PATCH", `/api/admin/searches/${s.id}`, s) : send<{ id: number }>("POST", "/api/admin/searches", s)),
   deleteSearch: (id: number) => send<{ ok: true }>("DELETE", `/api/admin/searches/${id}`),
   runSearch: (id: number) => send<{ count: number; created: number }>("POST", `/api/admin/searches/${id}/run`),
+  ndas: (listingId?: number) => get<NdaList>(`/api/admin/ndas${listingId ? `?listingId=${listingId}` : ""}`),
+  createNda: (listingId: number) => send<Nda>("POST", `/api/admin/listings/${listingId}/nda`),
+  uploadNda: async (listingId: number, file: File) => {
+    const res = await fetch(`/api/admin/listings/${listingId}/nda/upload?filename=${encodeURIComponent(file.name)}`, { method: "POST", body: file, headers: { "Content-Type": "application/pdf" }, credentials: "same-origin" });
+    const data = (await res.json().catch(() => ({}))) as Nda & { error?: string };
+    if (!res.ok) throw new ApiError(res.status, data.error ?? `Upload failed (${res.status})`);
+    return data;
+  },
+  syncNda: (id: number) => send<Nda>("POST", `/api/admin/ndas/${id}/sync`),
+  syncNdas: () => send<{ checked: number; signed: number }>("POST", "/api/admin/ndas/sync"),
+  retryNda: (id: number) => send<Nda>("POST", `/api/admin/ndas/${id}/retry`),
+  autoNda: (id: number, auto: boolean) => send<{ ok: true }>("POST", `/api/admin/ndas/${id}/auto`, { auto }),
+  voidNda: (id: number) => send<{ ok: true }>("POST", `/api/admin/ndas/${id}/void`),
+  saveNdaSettings: (s: Partial<NdaSettings>) => send<{ settings: NdaSettings }>("PUT", "/api/admin/settings/nda", s),
+
   demoSeed: () => send<{ listings: number; seeded: boolean }>("POST", "/api/admin/demo-seed"),
 };

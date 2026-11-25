@@ -6,6 +6,7 @@ import BuyBoxForm from "./BuyBox";
 import Connect from "./Connect";
 import ListingDetail from "./ListingDetail";
 import Listings from "./Listings";
+import Ndas from "./Ndas";
 import Outreach from "./Outreach";
 import Pipeline from "./Pipeline";
 import Sources from "./Sources";
@@ -14,6 +15,7 @@ const TABS = [
   { id: "pipeline", label: "Pipeline" },
   { id: "listings", label: "Listings" },
   { id: "outreach", label: "Outreach" },
+  { id: "ndas", label: "NDAs" },
   { id: "sources", label: "Sources" },
   { id: "buybox", label: "Buy box" },
   { id: "analytics", label: "Analytics" },
@@ -112,6 +114,7 @@ export default function Admin() {
       {tab === "pipeline" && <Pipeline version={version} onOpen={openListing} onChanged={bump} mock={!!status?.mock} />}
       {tab === "listings" && <Listings version={version} onOpen={openListing} onChanged={bump} />}
       {tab === "outreach" && <Outreach version={version} onOpen={openListing} onChanged={bump} status={status} />}
+      {tab === "ndas" && <Ndas version={version} onOpen={openListing} onChanged={bump} />}
       {tab === "sources" && <Sources status={status} onChanged={bump} />}
       {tab === "buybox" && <BuyBoxForm onChanged={bump} />}
       {tab === "analytics" && <Analytics version={version} />}

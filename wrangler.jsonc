@@ -5,6 +5,8 @@
   // Kaizen Apps. An account id is not a credential.
   "account_id": "f19d27cc74917ce2597bf6b423f94aff",
   "main": "worker/src/index.ts",
+  // The hub's own address. The zone has to be in the same Cloudflare account.
+  "routes": [{ "pattern": "qla.prestonzen.com", "custom_domain": true }],
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": "./dist",
@@ -32,8 +34,11 @@
   //   GMAIL_BRIDGE_TOKEN  shared secret for integrations/gmail-bridge.gs
   //   AGENT_TOKENS        JSON map of agent name -> token, for /api/agent/* and /mcp
   //   FLIPPA_TOKEN        optional: Flippa API access token for the Flippa importer
+  //   DOCUMENSO_TOKEN     optional: API token from your Documenso (Settings, API tokens) for NDA signing
   "vars": {
     "MOCK": "false",
+    // Your Documenso instance; NDAs are signed there.
+    "DOCUMENSO_URL": "https://esign.kaizenapps.com",
     // "true" shows aggregate-only counts on the public page; anything else shows a plain sign-in link.
     "PUBLIC_DASHBOARD": "false"
   }

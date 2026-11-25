@@ -10,6 +10,9 @@ export interface Env {
   AGENT_TOKENS?: string;
   GMAIL_BRIDGE_TOKEN?: string;
   FLIPPA_TOKEN?: string;
+  /** Documenso (e-signing): base URL of the instance and an API token created in its settings. */
+  DOCUMENSO_URL?: string;
+  DOCUMENSO_TOKEN?: string;
 }
 
 export class HttpError extends Error {

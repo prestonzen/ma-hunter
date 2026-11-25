@@ -398,6 +398,8 @@ export interface DueMessage {
   threadId: string | null;
   listingId: number | null;
   listingTitle: string | null;
+  /** Documents to attach; the Gmail bridge fetches each from /api/gmail/attachment. */
+  attachments: { id: number; filename: string }[];
 }
 
 /**
@@ -421,13 +423,14 @@ export async function claimDue(env: Env, channel: "email" | "form", max?: number
   const { results } = await d
     .prepare(
       `SELECT m.id, m.toEmail, m.url, m.subject, m.body, m.listingId, m.enrollmentId, l.title AS listingTitle, l.status AS listingStatus,
-              e.threadId, e.status AS enrollmentStatus, c.doNotContact
+              COALESCE(e.threadId, m.threadId) AS threadId, e.status AS enrollmentStatus, c.doNotContact, m.attachDocId, doc.filename AS attachName
          FROM messages m LEFT JOIN enrollments e ON e.id = m.enrollmentId LEFT JOIN contacts c ON c.id = m.contactId LEFT JOIN listings l ON l.id = m.listingId
+         LEFT JOIN documents doc ON doc.id = m.attachDocId
         WHERE m.direction = 'out' AND m.channel = ?1 AND m.status = 'approved' AND m.scheduledAt <= ?2
         ORDER BY m.scheduledAt ASC LIMIT ?3`,
     )
     .bind(channel, now, limit + 5)
-    .all<{ id: number; toEmail: string | null; url: string | null; subject: string; body: string; listingId: number | null; enrollmentId: number | null; listingTitle: string | null; listingStatus: string | null; threadId: string | null; enrollmentStatus: string | null; doNotContact: number | null }>();
+    .all<{ id: number; toEmail: string | null; url: string | null; subject: string; body: string; listingId: number | null; enrollmentId: number | null; listingTitle: string | null; listingStatus: string | null; threadId: string | null; enrollmentStatus: string | null; doNotContact: number | null; attachDocId: number | null; attachName: string | null }>();
 
   const out: DueMessage[] = [];
   for (const m of results) {
@@ -439,7 +442,7 @@ export async function claimDue(env: Env, channel: "email" | "form", max?: number
     }
     const won = await d.prepare("UPDATE messages SET status = 'sending', leaseUntil = ? WHERE id = ? AND status = 'approved'").bind(now + 10 * 60_000, m.id).run();
     if (won.meta.changes !== 1) continue;
-    out.push({ id: m.id, to: m.toEmail, url: m.url, subject: m.subject, body: m.body, threadId: m.threadId, listingId: m.listingId, listingTitle: m.listingTitle });
+    out.push({ id: m.id, to: m.toEmail, url: m.url, subject: m.subject, body: m.body, threadId: m.threadId, listingId: m.listingId, listingTitle: m.listingTitle, attachments: m.attachDocId && m.attachName ? [{ id: m.attachDocId, filename: m.attachName }] : [] });
   }
   return { messages: out, reason: null };
 }
@@ -451,7 +454,7 @@ export async function markSent(env: Env, id: number, r: { gmailId?: string | nul
   if (!m) throw new HttpError(404, "message not found");
   if (m.status === "sent") return; // a repeated report
   const now = Date.now();
-  await d.prepare("UPDATE messages SET status = 'sent', sentAt = ?, gmailId = ?, threadId = ?, fromEmail = ?, error = NULL, leaseUntil = 0 WHERE id = ?").bind(now, r.gmailId ?? null, r.threadId ?? null, r.from ?? null, id).run();
+  await d.prepare("UPDATE messages SET status = 'sent', sentAt = ?, gmailId = ?, threadId = COALESCE(?, threadId), fromEmail = ?, error = NULL, leaseUntil = 0 WHERE id = ?").bind(now, r.gmailId ?? null, r.threadId ?? null, r.from ?? null, id).run();
 
   if (m.listingId) {
     await d

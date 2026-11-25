@@ -5,6 +5,8 @@
  *   1. Sends the outreach emails you approved in the hub, from your Gmail. Follow-ups go into the same thread.
  *   2. Reports replies from brokers and owners back to the hub, so the sequence stops and the listing moves on.
  *   3. Forwards saved-search alert emails from the marketplaces, so new listings land in the hub.
+ *   4. Carries NDAs both ways: a PDF attached to a broker's reply goes to the hub to be prepared for signing,
+ *      and the signed copy goes back to the broker as an attachment.
  *
  * It only ever forwards mail that is (a) in a thread the hub started, (b) from a contact you have already
  * written to, or (c) from a marketplace's alert address. Nothing else in your inbox leaves Google.
@@ -23,6 +25,7 @@
 var LOOKBACK = "3d"; // how far back to look for replies and alerts
 var MAX_THREADS = 60; // threads examined per run
 var REMEMBER = 300; // message ids remembered as already forwarded
+var MAX_PDF_BYTES = 5 * 1024 * 1024; // PDFs larger than this are not forwarded; upload those in the hub
 
 function install() {
   uninstall();
@@ -68,7 +71,7 @@ function sync() {
   var sent = [];
   (work.send || []).forEach(function (m) {
     try {
-      var r = sendOne(m, work.fromName);
+      var r = sendOne(m, work.fromName, hub, token);
       sent.push({ id: m.id, ok: true, gmailId: r.gmailId, threadId: r.threadId });
     } catch (e) {
       sent.push({ id: m.id, ok: false, error: String((e && e.message) || e).slice(0, 300) });
@@ -89,8 +92,21 @@ function sync() {
 }
 
 /** Send one message. A follow-up replies into its thread; a first message starts one. */
-function sendOne(m, fromName) {
+function sendOne(m, fromName, hub, token) {
   var opts = fromName ? { name: fromName } : {};
+  // Documents the hub attached to this message (the signed NDA). A message that can't get its attachment is not sent.
+  var files = (m.attachments || []).map(function (a) {
+    var res = UrlFetchApp.fetch(hub + "/api/gmail/attachment", {
+      method: "post",
+      contentType: "application/json",
+      headers: { Authorization: "Bearer " + token },
+      muteHttpExceptions: true,
+      payload: JSON.stringify({ id: a.id }),
+    });
+    if (res.getResponseCode() >= 300) throw new Error("attachment " + a.id + ": hub " + res.getResponseCode());
+    return res.getBlob().setName(a.filename || "document.pdf").setContentType("application/pdf");
+  });
+  if (files.length) opts.attachments = files;
   var draft = null;
   if (m.threadId) {
     var thread = GmailApp.getThreadById(m.threadId);
@@ -138,10 +154,23 @@ function collectInbound(work, me, props) {
       if (!inWatched && !watchSenders[address] && !isAlert) return; // not ours to forward
       var item = { id: id, threadId: thread.getId(), from: from, subject: m.getSubject(), date: m.getDate().toISOString(), text: m.getPlainBody().slice(0, 12000), kind: isAlert && !inWatched ? "alert" : "reply" };
       if (item.kind === "alert") item.html = m.getBody().slice(0, 250000);
+      else {
+        // PDFs on a reply: usually the broker's NDA. At most two, and only small ones.
+        var pdfs = m.getAttachments().filter(function (a) {
+          return (a.getContentType() === "application/pdf" || /\.pdf$/i.test(a.getName())) && a.getSize() <= MAX_PDF_BYTES;
+        });
+        if (pdfs.length) {
+          item.attachments = pdfs.slice(0, 2).map(function (a) {
+            return { name: a.getName(), type: "application/pdf", data: Utilities.base64Encode(a.getBytes()) };
+          });
+        }
+      }
       out.push(item);
     });
   });
-  return out.slice(0, 60);
+  // A report with PDFs in it is large: keep it to a few replies per run, the rest follow next time.
+  var heavy = out.filter(function (m) { return m.attachments; }).length;
+  return out.slice(0, heavy ? 12 : 60);
 }
 
 function remember(props, ids) {
