@@ -229,3 +229,7 @@ node scripts/nda-selftest.mjs      # NDA signing end to end, against a stand-in 
 - A second signer on our own NDA, for sellers who want to countersign.
 - Quant: a survival model for time on market (which listings go, and how fast) once enough have been watched to a sale; sold prices where a marketplace publishes them; the same clause-and-anomaly reading the NDA scan does, applied to CIMs and financials in the data room.
 - Weekly D1 backup to R2.
+
+## License
+
+[MIT](LICENSE)

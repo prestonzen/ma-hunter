@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "One pane of glass for hunting businesses to acquire: sourcing from marketplaces, a scored deal pipeline, and Gmail outreach with follow-ups. Cloudflare Workers + D1 + R2.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "node ./node_modules/vite/bin/vite.js",
