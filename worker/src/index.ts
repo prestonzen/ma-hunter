@@ -11,6 +11,7 @@ import { DEFAULT_BUY_BOX } from "./score";
 import { seedDemo } from "./seed";
 import { claimBrowserSearch, deleteSearch, ingestAlert, ingestPages, isAlertSender, listingLinks, listSearches, previewUrl, runDueSearches, runSearch, saveSearch, unseen } from "./sources";
 import { HttpError } from "./types";
+import { listingValuation, quantView, refit, refitIfStale, saveUnderwriting } from "./valuation";
 import type { BuyBox, Env, ListingInput, NdaSettings, OutreachSettings } from "./types";
 
 const json = (o: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -152,12 +153,18 @@ async function adminRoutes(request: Request, env: Env, path: string, user: strin
       await uploadDocument(env, id, request, user);
       return json(await getDetail(env, id), 201);
     }
+    if (seg[2] === "valuation" && m === "GET") return json(await listingValuation(env, id));
     // NDAs: write ours for this listing, or take theirs as a PDF.
     if (seg[2] === "nda" && !seg[3] && m === "POST") return json(await createOurs(env, id, user), 201);
     if (seg[2] === "nda" && seg[3] === "upload" && m === "POST") {
       return json(await createTheirs(env, id, url.searchParams.get("filename") ?? "nda.pdf", await request.arrayBuffer(), user), 201);
     }
   }
+
+  // Quant layer: the valuation model, every listing against it, and the underwriting assumptions.
+  if (path === "/quant" && m === "GET") return json(await quantView(env));
+  if (path === "/quant/refit" && m === "POST") return json(await refit(env));
+  if (path === "/settings/underwriting" && m === "PUT") return json({ underwriting: await saveUnderwriting(env, await body(request)) });
 
   if (path === "/ndas" && m === "GET") {
     const listingId = Number(url.searchParams.get("listingId")) || undefined;
@@ -491,13 +498,14 @@ export async function handle(request: Request, env: Env): Promise<Response> {
 
 export default {
   fetch: handle,
-  /** Cron: run the saved searches that are due, retire listings that vanished from their source, and file NDAs that were signed. */
+  /** Cron: run the saved searches that are due, retire listings that vanished from their source, file NDAs that were signed, and refit the valuation model when listings changed. */
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
       (async () => {
         await runDueSearches(env, 2);
         await expireStale(env);
         await syncNdas(env);
+        await refitIfStale(env);
       })(),
     );
   },

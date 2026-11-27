@@ -409,3 +409,84 @@ export interface NdaSettings {
   returnMessage: string;
   template: string;
 }
+
+// ---------- quant layer (worker/src/quant.ts) ----------
+
+export interface ModelScore {
+  name: string;
+  label: string;
+  /** Mean absolute error in log multiple: 0.20 is roughly "off by 20%". */
+  mae: number;
+  /** Median absolute error on price, as a fraction. */
+  mdape: number;
+  /** Share of the median baseline's error removed: 0 is no better than the baseline. */
+  skill: number;
+  /** MAE in each walk-forward block, oldest first. */
+  blocks: number[];
+}
+
+export interface QuantValue {
+  id: number;
+  /** The multiple the model expects, and an 80% band around it. */
+  fair: number;
+  low: number;
+  high: number;
+  /** Asking price against the model: -0.2 is 20% below. */
+  gap: number;
+  band: "below" | "within" | "above";
+  /** The features that move this listing's estimate most, from the linear model. */
+  drivers: { name: string; effect: number }[];
+}
+
+export interface QuantReport {
+  fitAt: number;
+  n: number;
+  tested: number;
+  from: number;
+  to: number;
+  features: string[];
+  models: ModelScore[];
+  chosen: string;
+  /** How much error the chosen model removes against the median baseline, with a bootstrap 95% interval. */
+  vsBaseline: { diff: number; lo: number; hi: number };
+  /** The band's edges as log residuals (10th and 90th percentile of out-of-fold errors). */
+  band: { lo: number; hi: number };
+  /** Linear read: change in the multiple for one standard deviation of each feature. */
+  drivers: { name: string; effect: number }[];
+  /** Tree read: share of the trees' error reduction credited to each feature. */
+  importance: { name: string; share: number }[];
+  ridgeLambda: number;
+  notes: string[];
+}
+
+/** A listing's stored valuation: QuantValue without the id. */
+export type Valuation = Omit<QuantValue, "id">;
+
+export interface QuantItem {
+  id: number;
+  title: string;
+  source: string;
+  url: string | null;
+  industry: string | null;
+  model: string | null;
+  askingPrice: number | null;
+  /** Annual cash flow, or EBITDA when that is all the listing states. */
+  earnings: number | null;
+  ownerHours: number | null;
+  stage: Stage;
+  starred: number;
+  status: ListingStatus;
+  valuation: Valuation | null;
+  /** Text similarity to the listings already picked, less similarity to the ones passed on. Null until something is picked. */
+  like: number | null;
+}
+
+export interface QuantView {
+  report: QuantReport | null;
+  /** Listings were added or repriced since the last fit. */
+  stale: boolean;
+  underwriting: import("./underwrite").Underwriting;
+  /** How many listings count as picked (starred or moved past "New"). */
+  picked: number;
+  items: QuantItem[];
+}

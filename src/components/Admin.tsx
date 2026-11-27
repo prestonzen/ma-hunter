@@ -9,11 +9,13 @@ import Listings from "./Listings";
 import Ndas from "./Ndas";
 import Outreach from "./Outreach";
 import Pipeline from "./Pipeline";
+import Quant from "./Quant";
 import Sources from "./Sources";
 
 const TABS = [
   { id: "pipeline", label: "Pipeline" },
   { id: "listings", label: "Listings" },
+  { id: "valuation", label: "Valuation" },
   { id: "outreach", label: "Outreach" },
   { id: "ndas", label: "NDAs" },
   { id: "sources", label: "Sources" },
@@ -113,6 +115,7 @@ export default function Admin() {
 
       {tab === "pipeline" && <Pipeline version={version} onOpen={openListing} onChanged={bump} mock={!!status?.mock} />}
       {tab === "listings" && <Listings version={version} onOpen={openListing} onChanged={bump} />}
+      {tab === "valuation" && <Quant version={version} onOpen={openListing} onChanged={bump} />}
       {tab === "outreach" && <Outreach version={version} onOpen={openListing} onChanged={bump} status={status} />}
       {tab === "ndas" && <Ndas version={version} onOpen={openListing} onChanged={bump} />}
       {tab === "sources" && <Sources status={status} onChanged={bump} />}

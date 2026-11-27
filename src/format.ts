@@ -40,7 +40,7 @@ export function days(n: number | undefined): string {
 const SOURCE_NAMES: Record<string, string> = {
   bizbuysell: "BizBuySell", bizquest: "BizQuest", flippa: "Flippa", empireflippers: "Empire Flippers", acquire: "Acquire.com", loopnet: "LoopNet",
   businessbroker: "BusinessBroker.net", businessesforsale: "BusinessesForSale", quietlight: "Quiet Light", websiteclosers: "Website Closers",
-  feinternational: "FE International", dealstream: "DealStream", manual: "Added by hand",
+  feinternational: "FE International", dealstream: "DealStream", boopos: "Boopos", manual: "Added by hand",
 };
 export const sourceName = (s: string) => SOURCE_NAMES[s] ?? s;
 

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { NdaPanel } from "./Ndas";
+import { ValuationPanel } from "./Quant";
+import { annualPayment as payment } from "../../shared/underwrite";
 import { STAGES, STAGE_LABEL, type Listing, type ListingDetail as Detail } from "../../shared/types";
 import { api, type SequenceRow } from "../api";
 import { TRI_LABEL, ago, date, dateTime, days, fitTone, fullMoney, money, sourceName } from "../format";
@@ -388,6 +390,8 @@ export default function ListingDetail({ id, onClose, onChanged }: Props) {
             </ul>
           </section>
 
+          <ValuationPanel listingId={id} askingPrice={l.askingPrice} earnings={l.cashFlow ?? l.ebitda} ownerHours={l.ownerHours} />
+
           <NdaPanel listingId={id} onChanged={() => void run(api.listing(id))} />
 
           <Documents d={d} run={run} reload={() => void run(api.listing(id))} />
@@ -612,14 +616,6 @@ function Documents({ d, run, reload }: { d: Detail; run: (p: Promise<Detail>) =>
     </section>
   );
 }
-
-/** Annual payment on an amortising loan. */
-const payment = (principal: number, ratePct: number, years: number) => {
-  if (principal <= 0 || years <= 0) return 0;
-  const r = ratePct / 100 / 12;
-  const n = years * 12;
-  return (r === 0 ? principal / n : (principal * r) / (1 - Math.pow(1 + r, -n))) * 12;
-};
 
 /** A quick look at whether the cash flow can carry the debt. An estimate to frame the conversation, not a quote. */
 function Calculator({ l }: { l: Listing }) {

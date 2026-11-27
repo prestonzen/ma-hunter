@@ -105,6 +105,13 @@ const MIGRATIONS: string[][] = [
     `CREATE INDEX IF NOT EXISTS ndas_listing ON ndas (listingId)`,
     `ALTER TABLE messages ADD COLUMN attachDocId INTEGER`,
   ],
+  // 3: the quant layer's per-listing valuations (the model report itself lives in settings).
+  [
+    `CREATE TABLE IF NOT EXISTS valuations (
+      listingId INTEGER PRIMARY KEY, fair REAL NOT NULL, low REAL NOT NULL, high REAL NOT NULL, gap REAL NOT NULL,
+      band TEXT NOT NULL, drivers TEXT NOT NULL DEFAULT '[]', fitAt INTEGER NOT NULL
+    )`,
+  ],
 ];
 
 const ready = new WeakMap<D1Database, Promise<void>>();

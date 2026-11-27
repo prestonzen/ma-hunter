@@ -456,11 +456,11 @@ export function pageFromHtml(url: string, html: string): PagePayload {
 export const ALERT_DOMAINS = [
   "bizbuysell.com", "bizquest.com", "flippa.com", "businessbroker.net", "businessesforsale.com", "loopnet.com", "dealstream.com",
   "acquire.com", "empireflippers.com", "quietlight.com", "websiteclosers.com", "feinternational.com", "sunbeltnetwork.com", "tworld.com",
-  "bizben.com", "globalbx.com", "motioninvest.com", "latonas.com",
+  "bizben.com", "globalbx.com", "motioninvest.com", "latonas.com", "boopos.com",
 ];
 
 /** URL shapes that are a single listing's page on the big marketplaces. */
-export const LISTING_URL = /bizbuysell\.com\/(?:business-opportunity|business-for-sale|franchise-for-sale)\/[^/?#]+\/\d+|bizquest\.com\/(?:business-for-sale|listing)\/[^?#]*\d{4,}|flippa\.com\/\d{6,}|businessbroker\.net\/(?:business-for-sale|listings)\/[^?#]*\d{4,}|businessesforsale\.com\/[^?#]*\/[\w-]+\.aspx|loopnet\.com\/biz\/[^?#]*\d{5,}|dealstream\.com\/[^?#]*\/\d{4,}|empireflippers\.com\/listing\/\d+|acquire\.com\/(?:startup|listing)s?\/[\w-]+|quietlight\.com\/listings\/\d+|websiteclosers\.com\/businesses-for-sale\/[\w-]+/i;
+export const LISTING_URL = /bizbuysell\.com\/(?:business-opportunity|business-for-sale|franchise-for-sale)\/[^/?#]+\/\d+|bizquest\.com\/(?:business-for-sale|listing)\/[^?#]*\d{4,}|flippa\.com\/\d{6,}|businessbroker\.net\/(?:business-for-sale|listings)\/[^?#]*\d{4,}|businessesforsale\.com\/[^?#]*\/[\w-]+\.aspx|loopnet\.com\/biz\/[^?#]*\d{5,}|dealstream\.com\/[^?#]*\/\d{4,}|empireflippers\.com\/listing\/\d+|acquire\.com\/(?:startup|listing)s?\/[\w-]+|quietlight\.com\/listings\/\d+|websiteclosers\.com\/businesses-for-sale\/[\w-]+|boopos\.com\/(?:deals?|listings?|for-sale|businesses|marketplace)\/[\w-]+/i;
 
 const BOILERPLATE = /unsubscribe|view (?:all|more|in browser|online)|manage (?:alerts?|preferences|your)|privacy|terms of|contact us|help cent|sign in|log ?in|download (?:the|our) app|see (?:all|more)|edit (?:your )?search|click here|learn more|get started|update (?:your )?(?:preferences|profile)|advertis|facebook|twitter|linkedin|instagram/i;
 

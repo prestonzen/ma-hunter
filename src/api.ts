@@ -1,4 +1,12 @@
-import type { Analytics, BuyBox, Contact, EventRow, Facets, Listing, ListingDetail, ListingInput, Message, Nda, NdaSettings, OutreachSettings, PublicSummary, SavedSearch, Sequence, Template } from "../shared/types";
+import type { Analytics, BuyBox, Contact, EventRow, Facets, Listing, ListingDetail, ListingInput, Message, Nda, NdaSettings, OutreachSettings, PublicSummary, QuantItem, QuantReport, QuantView, SavedSearch, Sequence, Template, Valuation } from "../shared/types";
+import type { Underwriting } from "../shared/underwrite";
+
+export interface ListingValuation {
+  valuation: Valuation | null;
+  comps: (QuantItem & { score: number })[];
+  underwriting: Underwriting;
+  fitAt: number | null;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -119,6 +127,10 @@ export const api = {
   retryNda: (id: number) => send<Nda>("POST", `/api/admin/ndas/${id}/retry`),
   autoNda: (id: number, auto: boolean) => send<{ ok: true }>("POST", `/api/admin/ndas/${id}/auto`, { auto }),
   voidNda: (id: number) => send<{ ok: true }>("POST", `/api/admin/ndas/${id}/void`),
+  quant: () => get<QuantView>("/api/admin/quant"),
+  refitQuant: () => send<{ report: QuantReport | null; priced: number }>("POST", "/api/admin/quant/refit"),
+  saveUnderwriting: (u: Partial<Underwriting>) => send<{ underwriting: Underwriting }>("PUT", "/api/admin/settings/underwriting", u),
+  valuation: (id: number) => get<ListingValuation>(`/api/admin/listings/${id}/valuation`),
   saveNdaSettings: (s: Partial<NdaSettings>) => send<{ settings: NdaSettings }>("PUT", "/api/admin/settings/nda", s),
 
   demoSeed: () => send<{ listings: number; seeded: boolean }>("POST", "/api/admin/demo-seed"),
